@@ -11,7 +11,9 @@ execute:
   eval: false
 ---
 
-##load the required libraries
+## load the required libraries
+
+**BMB**: packages, not libraries ... (see [here](https://stackoverflow.com/questions/26900228/what-is-the-difference-between-a-library-and-a-package-in-r))
 
 ```{r}
 library(dplyr)
@@ -54,11 +56,13 @@ The data set chosen is "attitude". Here are the variables below:
 
 -   Response variable: 'rating'
 
-The response variable is using units. For all predictor variable, a range of 0-10 would consider as a reasonable threshold for a small change in that variable.
+The response variable is using units. For all predictor variable, a range of 0-10 would consider as a reasonable threshold for a small change in that variable. **BMB**: these words don't really make sense? What does "using units" mean? How do you know that 0-10 is small?
 
 **Fit a linear regression model**
 
 To fit a linear regression model, the four predictors variables included are 'complains', 'learning' 'raises', 'advance'.
+
+**BMB**: how did you decide on these?
 
 ```{r}
 m1<- lm(rating ~ complaints + learning + raises + critical , data=attitude)
@@ -73,9 +77,13 @@ plot(m1)
 
 In the residual vs fitted plot, residuals are equally spread and follow a roughly linear pattern around the red line. Although the red line deviates from an exactly horizontal line but not severely so it can be declare that no non-linear relationships appears and a linear regression model is appropriate for this data set. From normal Q-Q plot, we can observe that points generally fall along the straight diagonal line, although observation #6, #12, #23 deviate a little off the line at the end of the tail, it is not enough to indicate that residuals are non-normally distributed. In the plot of Residuals vs Leverage, there is no observation lies outside of the dashed line which is cook's distance, it shows that there is no influential case. On the other hand, the scale-location plot reveals that residuals are spreading wider along the x-axis between 60 and 70, so the red line is not horizontal at all and shows a steep angle which may results in violation of the assumption of equal variance in this case. As a result, model adjustment may be needed.
 
+**BMB**: largest three residuals are always labeled. Q-Q plot is thin-tailed.
+
 **Adjustment**
 
 To adjust the model, log transformation is carried out.
+
+**BMB**: this log-transforms the response and *all* of the predictors. Did you know that? is that what you meant to do?
 
 ```{r}
 attitude_log <- log(attitude)
@@ -87,6 +95,8 @@ plot(m2)
 
 The normal Q-Q plot shows that points fall better along the line after log transformation which indicates that the model is fitted better.
 
+**BMB**: doesn't seem to have fixed the scale-location plot though  ... ???
+
 **Show a coefficient plot of the result.**
 
 ```{r}
@@ -94,7 +104,9 @@ dotwhisker::dwplot(m2) + geom_vline(xintercept = 0, lty = 2) +
 labs(title = "coefficient plot")
 ```
 
-For this case, predictors are not scaled and centered because predictor variables for a rating have a meaningful zero value. The default confidence interval is 95%, from the plot, with the dashed line at 0, 3 of the estimates larger than 0. Besides, we can see that coefficients of 'complaints' is highly significant at the 5% level because the interval doesn't contain 0.
+For this case, predictors are not scaled and centered because predictor variables for a rating have a meaningful zero value. **BMB**: this explains not centering, not not-scaling ... The default confidence interval is 95%, from the plot, with the dashed line at 0, 3 of the estimates larger than 0. Besides, we can see that coefficients of 'complaints' is highly significant at the 5% level because the interval doesn't contain 0.
+
+**BMB**: this is just a restatement of the significance values from a summary table ...
 
 **Effects Plot**
 
@@ -146,6 +158,8 @@ minimal_0 <- model.matrix(~ 0 + Period:Treatment, BACI)
 eg2 <- expand.grid(minimal_0, C, inv_C)
 print(eg2)
 ```
+
+**BMB**: you never constructed the 'custom' inverse-contrast/contrast matrices, which are most of the point of this exercise ...
 
 ## 3. Simulation Exercise
 
@@ -210,6 +224,8 @@ results <- run_sim(n_sim = 1000, n = 100, true_slope = 2, sd = 2)
 summary(results)
 
 ```
+
+**BMB**: this code is not reproducible!
 
 **Assumption to violate**
 
