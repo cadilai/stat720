@@ -1,0 +1,315 @@
+---
+title: "STATS 720 - Homework assignment 2"
+author: "Ka Yin Lai 400219450"
+date: "2023/10/13"
+format: html
+editor: visual
+header-includes:
+   - \usepackage{amsmath}
+   - \usepackage{float}
+fontsize: 11pt
+geometry: 
+  - margin = 1in
+linestretch: 1.5
+---
+
+```{r}
+library(ggplot2)
+library(rpart)
+library(performance)
+library(DHARMa)
+library(dotwhisker)
+library(emdbook)
+library(parameters)
+library(brglm2)
+library(lmtest)
+library(aod)
+library(bbmle)
+```
+
+## 1. Analyze the kyphosis data
+
+```{r}
+#Read data
+data(kyphosis)
+str(kyphosis)
+summary(kyphosis)
+```
+
+**1a. Analysis Strategy**
+
+Predictors: 'Number', 'Start', 'Age'.
+
+As there is a binary outcome from predictor variables 'Start' and 'Number' where both of them are continuous variable, link function will be used is logit with the family 'binomial'.
+
+**1b. Plot Data**
+
+```{r fig1}
+#plot
+ggplot(kyphosis, aes(x=as.factor(Kyphosis), y=Number)) + 
+    geom_boxplot(fill="slateblue", alpha=0.2) + 
+    xlab("Kyphosis")
+
+ggplot(kyphosis, aes(x=as.factor(Kyphosis), y=Age)) + 
+    geom_boxplot(fill="lightgreen", alpha=0.2) + 
+    xlab("Kyphosis")
+```
+
+From the two box plots, 2 outliers detected in 'Number' while there is no outliers in 'Age', the range of 'Age' is larger than that of 'Number'. The data of kyphosis verses number are symmetric as the median line appear in the center of the box while present with age is a little bit left-skewed so the mean will be lower than the median.
+
+**1c. Fit the model**
+
+```{r}
+#fit model()
+m_kyphosis <- glm(Kyphosis ~ Number + Start + Age, data=kyphosis, family=binomial)
+```
+
+**1d. Compare the diagnostic plots**
+
+-   **Base R**
+
+```{r fig2}
+par(mfrow=c(2,2))
+plot(m_kyphosis)
+```
+
+In the residual vs fitted plot, residuals are equally spread and follow a roughly linear pattern around the red line. Although the red line deviates from an exactly horizontal line but not severely so it can be declare that no non-linear relationships appears and a linear regression model is appropriate for this data set. From normal Q-Q plot, we can observe that points generally fall along the straight diagonal line, but observation deviate a little off the line at the end of the tail. In the plot of Residuals vs Leverage, there is no observation lies outside of the dashed line which is cook's distance, it indicates that there is no influential case. In addition, the scale-location plot reveals that residuals are spreading wider along the x-axis between -2 and 2, and the red line is not horizontal and shows a steep slope which may results in violation of the assumption of equal variance in this case. 
+
+-   **check_model**
+
+```{r fig3}
+#| fig-height: 12
+#| fig-width: 8
+#| out-height: 3in
+#| out-width: 2in
+performance::check_model(m_kyphosis, panel = TRUE)
+```
+
+There are 5 plots in total. For influential observations, there is no point fall outside of Cook's distance so there is no influential case. In the plot of Normality of Residuals, dots fall well along the line, observation deviate a little off the line at the end of the tail. The binned residuals plot shows 5 blue points are inside blue points which indicates residuals are acceptable and there are 4 red points which indicates model may facing under-fitting or over-fitting for the relevant range of estimated probabilities. For potential collinearity, all predictors has a low VIF which indicates a low correlation of predictors variables.
+
+-   **DHARMa**
+
+```{r fig4}
+#DHARMa
+simulationOutput_1 <- simulateResiduals(fittedModel = m_kyphosis)
+plot(simulationOutput_1)
+```
+
+From the DHARMa plot, there is no occurrence of overdispersion and underdispersion. The QQ-plot on the left panel demonstrates dots align well on the QQ line which shows that residuals follow an uniform distribution. With KS test, dispersion and outlier test, there is no over/underdispersion and outliers appeared. From the plot of residual against the predicted values, there is no significant problems detected that no outliers show up, black lines which represent simulated quartiles is a little bit steep and cannot follow the dotted straight lines. So here is a difference between residual and predicted values.
+
+-   **Comparison**
+
+By comparing different methods, all methods indicate that there is no outliers and influential cases in the model.
+
+**1e. Coefficient Plot**
+
+```{r}
+#coefficient plots
+dotwhisker::dwplot(m_kyphosis) + geom_vline(xintercept = 0, lty = 2) +
+labs(x="coefficient plot")
+```
+
+The coefficient plot here reveals that 'Number' and 'Age' are statistically significant at the 5% level that both whiskers are larger than 0 which affect the response variables more while 'Start' is less than 0.
+
+## 2. Gopher tortoise example
+
+```{r}
+#get data
+g_url <- "https://raw.githubusercontent.com/bbolker/mm_workshops/master/data/gopherdat2.csv"
+g_data <- read.csv(g_url)
+```
+
+**2a. Plot**
+
+```{r fig5}
+#| fig-height: 12
+#| fig-width: 8
+#| out-height: 3in
+#| out-width: 2in
+#plot
+ggplot2::ggplot(g_data, aes(x = year, y = shells, group = Site)) +
+  geom_point() +
+  geom_line(aes(color = as.factor(Site))) + 
+  labs(x = "Year", y = "Shells") +
+  theme_minimal()
+```
+
+The line graph compares the number of fresh tortoise shell remains found in each site and year. Y-axis represents the number of shells and X-axis represents times between 2004 to 2006 while the lines are coloured by sites. Overall, it is clear that CF has the largest number of shells, followed by Old, FC, FE, Ord, TE, BS. All site had the largest number of shells at the beginning of the observed period, where all sites achieved peak im 2004, then declined dramatically and increased gradually.
+
+**2b. GLM**
+
+As the outcomes are counts, the family is 'poisson'.
+
+```{r}
+#fit glm model
+m1_gdata <- glm(shells ~ year + prev + Area, data = g_data, offset = log(Area), family = poisson)
+summary(m1_gdata)
+```
+
+For overdispersion checking, DHARMa plot and formal test will be carried out.
+
+```{r fig6}
+#check overdispersion
+simulationOutput_2 <- simulateResiduals(fittedModel = m1_gdata)
+plot(simulationOutput_2)
+#test
+check_overdispersion(m1_gdata)
+
+```
+
+Both plots demonstrate no obvious pattern of the occurrence of over/underdispersion and there is no overdispersion detected in the test.
+
+**2c. bbmle()**
+
+```{r}
+#bbmle  
+m2_gdata <- mle2(shells ~ dnbinom(mu = exp(logmu)*Area, size = exp(logtheta)),
+     parameters = list(logmu ~ year + prev + offset(log(Area))),
+     data = g_data,
+     start = list(logmu = 0, logtheta = 0)
+)
+summary(m2_gdata)
+```
+
+**2d. Negative log-likelihood function**
+
+-   Define negative log-likelihood function for GLM
+```{r}
+X <- model.matrix(~ year + prev, data = g_data)
+nll <- function(params) {
+  beta <- params[1:(length(params) - 1)]
+  theta <- exp(params[length(params)])
+  eta <- X %*% beta
+  prob <- plogis(eta)
+  size <- g_data$area
+  -sum(dbetabinom(g_data$shells, size, prob, theta, log = TRUE))
+}
+```
+
+
+-   Fit the GLM using optim
+
+```{r}
+initial_params <- c(rep(0, ncol(X)), log_theta = 0)  
+m3_gdata <- optim(par = initial_params, fn = nll, method = "BFGS")
+```
+
+**2e. Compare the parameters, Wald and profile CIs**
+
+```{r}
+# Compare the parameters 
+parameters <- data.frame(glm = parameters(m1_gdata),
+                         bbmle = parameters(m2_gdata),
+                         neg=m3_gdata$par
+)
+print(parameters)
+```
+The parameter of negative log-likelihood function contains 0. While parameter of other 2 models have positive and negative values respectively, the coefficient of glm() model is a large positive values, bbmle model has a negative value.
+
+```{r}
+#profiling 
+p1 <- profile(m1_gdata)
+p2 <- profile(m2_gdata)
+#CIs
+suppressWarnings(
+confint(p1)
+)
+suppressWarnings(
+confint(m2_gdata)
+)
+```
+From the table, the confidence interval of intercept of glm() model is between -199.68 to 1.11e+03 while the logmu of intercept of bbmle model is -31.49906372 so that there is a lower bound in glm() model. 
+
+
+## 3. Endometrial data
+
+```{r}
+#Read data
+data(endometrial)
+```
+
+**- Fitting model with different methods**
+
+As there is a binary outcome from continuous predictor variables, link function will be used is logit with the family 'binomial'.
+
+-   **glm()**
+
+```{r}
+#glm
+m1_endometrial <- glm(HG ~ PI + EH + NV , data=endometrial, family=binomial)
+summary(m1_endometrial)
+```
+
+-   **arm::bayesglm()**
+
+```{r}
+#Fit the model using bayesglm from the arm package
+m2_endometrial <- arm::bayesglm(HG ~ PI + EH + NV, data = endometrial, family = binomial)
+summary(m2_endometrial)
+```
+
+-   **glm(..., method = "brglmFit")**
+
+```{r}
+#Fit the model using brglmFit from the brglm2 package
+suppressWarnings(
+m3_endometrial <- glm(HG ~ PI + EH + NV, data = endometrial, family=binomial, method = "brglmFit")
+)
+summary(m3_endometrial)
+```
+
+**- Compare the estimates, confidence intervals, p-values and likelihood ratio test of each parameter from the glm results**
+
+-   **estimates**
+
+```{r}
+# Compare estimated coefficients
+estimates <- data.frame(glm = coef(m1_endometrial), 
+                        bayesglm = coef(m2_endometrial), 
+                        brglmFit = coef(m3_endometrial))
+print(estimates)
+```
+
+The estimates of NV in the glm model is relatively higher than others which is around 18 while others are around 3. Besides, estimates of 'PI', 'EH' in 3 models are all negative values which indicates when the predictor variables increases, the response variable - 'HG' tends to decrease.
+
+-   **confidence intervals**
+
+```{r}
+# Compare confidence intervals
+CI <- data.frame(glm = confint.default(m1_endometrial),
+                 arm = confint.default(m2_endometrial),
+                 brglmFit= confint.default(m3_endometrial))
+print(CI)
+```
+
+From the table, it indicates that glm() model has the largest range of confidence interval for all variables so the true population means has the largest range. Besides, the confidence interval of 'NV' in the glm() model is extremely higher than other variables and models, it contains the smallest and largest values. 
+
+-   **p-values**
+
+```{r}
+# Compare p-values
+p_values <- data.frame(glm = summary(m1_endometrial)$coefficients[, "Pr(>|z|)"], 
+                       bayesglm = summary(m2_endometrial)$coefficients[, "Pr(>|z|)"], 
+                       brglmFit = summary(m3_endometrial)$coefficients[, "Pr(>|z|)"])
+print(p_values)
+```
+
+The p-values of the intercept of all three models are less than 0.05 which indicates that the models may not fit well and the means of all groups are equal which can conclude that there is a significant difference between at least two of the groups. Besides, the p-value of 'NV' in glm() model is significant higher than others with a value near to 1, with a greater p-value, the discrepancy of 'NV' is smaller in glm() model.
+
+-   **likelihood ratio test**
+
+```{r}
+#glm model
+lrtest(m1_endometrial)
+#arm model
+lrtest(m2_endometrial)
+#brglmFit model
+lrtest(m3_endometrial)
+
+```
+
+Based on the likelihood ratio test, all Pr(\>Chisq) are small which are all near 0 so the null hypothesis would be rejected in all 3 models. In addition, all 3 models have similar log likelihood values, with 4 degree of freedom, log likelihood values around -28, while the log likelihood values equal to -52 with 1 degree of freedom, it demonstrates that the first model (glm()) offers a better fit to the data with 0.5 higher than others.
+
+-   **Reasons**
+
+Different methods used for fitting the model give different results because there are differences in their estimation approaches. For instance, regular glm() uses maximum likelihood estimation, while bayesglm() uses Bayesian estimation and glm(..., method = "brglmFit") uses implicit and explicit bias reduction methods.
