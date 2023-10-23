@@ -7,11 +7,13 @@ fontsize: 11pt
 geometry: 
   - margin = 1in
 linestretch: 1.5
-execute: 
-  eval: false
 ---
 
-##load the required libraries
+**BMB**: why did you set `eval:false` ??
+
+## load the required libraries
+
+**BMB**: technically these are "packages"
 
 ```{r}
 library(dplyr)
@@ -21,11 +23,11 @@ library(ggplot2)
 library(faraway)
 library(dotwhisker)
 library(performance)
-library(mlbench)
+library(mlbench) ## what for?
 library(see)
 library(emmeans)
 library(effects)
-library(pracma)
+library(pracma) ## what for?
 ```
 
 ## 1. Data Set
@@ -56,9 +58,13 @@ The data set chosen is "attitude". Here are the variables below:
 
 The response variable is using units. For all predictor variable, a range of 0-10 would consider as a reasonable threshold for a small change in that variable.
 
+**BMB**: all variables are *percentages* ...
+
 **Fit a linear regression model**
 
-To fit a linear regression model, the four predictors variables included are 'complains', 'learning' 'raises', 'advance'.
+To fit a linear regression model, the four predictor variables included are 'complains', 'learning' 'raises', 'advance'.
+
+**BMB**: how/why did you choose these?
 
 ```{r}
 m1<- lm(rating ~ complaints + learning + raises + critical , data=attitude)
@@ -71,11 +77,19 @@ par(mfrow=c(2,2))
 plot(m1)
 ```
 
-In the residual vs fitted plot, residuals are equally spread and follow a roughly linear pattern around the red line. Although the red line deviates from an exactly horizontal line but not severely so it can be declare that no non-linear relationships appears and a linear regression model is appropriate for this data set. From normal Q-Q plot, we can observe that points generally fall along the straight diagonal line, although observation #6, #12, #23 deviate a little off the line at the end of the tail, it is not enough to indicate that residuals are non-normally distributed. In the plot of Residuals vs Leverage, there is no observation lies outside of the dashed line which is cook's distance, it shows that there is no influential case. On the other hand, the scale-location plot reveals that residuals are spreading wider along the x-axis between 60 and 70, so the red line is not horizontal at all and shows a steep angle which may results in violation of the assumption of equal variance in this case. As a result, model adjustment may be needed.
+In the residual vs fitted plot, residuals are equally spread and follow a roughly linear pattern around the red line. Although the red line deviates from an exactly horizontal line but not severely so it can be declare that no non-linear relationships appears and a linear regression model is appropriate for this data set. From normal Q-Q plot, we can observe that points generally fall along the straight diagonal line, although observation #6, #12, #23 deviate a little off the line at the end of the tail, it is not enough to indicate that residuals are non-normally distributed. 
+
+**BMB**: the most extreme three residuals are *always* identified. Note that the residuals here are *thin-tailed* (Q-Q points are above the reference line to the left, below the ref line to the right), probably because the rating is on a percentage scale (so bounded above at 100, although the max value is only 85)
+
+In the plot of Residuals vs Leverage, there is no observation lies outside of the dashed line which is cook's distance, it shows that there is no influential case. On the other hand, the scale-location plot reveals that residuals are spreading wider along the x-axis between 60 and 70, so the red line is not horizontal at all and shows a steep angle which may results in violation of the assumption of equal variance in this case. As a result, model adjustment may be needed.
+
+**BMB**: OK.
 
 **Adjustment**
 
 To adjust the model, log transformation is carried out.
+
+**BMB**: this log-transforms the response and *all* of the predictors. Did you know that? is that what you meant to do?
 
 ```{r}
 attitude_log <- log(attitude)
@@ -87,6 +101,8 @@ plot(m2)
 
 The normal Q-Q plot shows that points fall better along the line after log transformation which indicates that the model is fitted better.
 
+**BMB**: doesn't seem to have fixed the scale-location plot though  ... ???
+
 **Show a coefficient plot of the result.**
 
 ```{r}
@@ -94,7 +110,9 @@ dotwhisker::dwplot(m2) + geom_vline(xintercept = 0, lty = 2) +
 labs(title = "coefficient plot")
 ```
 
-For this case, predictors are not scaled and centered because predictor variables for a rating have a meaningful zero value. The default confidence interval is 95%, from the plot, with the dashed line at 0, 3 of the estimates larger than 0. Besides, we can see that coefficients of 'complaints' is highly significant at the 5% level because the interval doesn't contain 0.
+For this case, predictors are not scaled and centered because predictor variables for a rating have a meaningful zero value. **BMB**: this explains not centering, not not-scaling ...  The default confidence interval is 95%, from the plot, with the dashed line at 0, 3 of the estimates larger than 0. Besides, we can see that coefficients of 'complaints' is highly significant at the 5% level because the interval doesn't contain 0.
+
+**BMB**: this is just a restatement of the significance values from a summary table ...
 
 **Effects Plot**
 
@@ -146,6 +164,9 @@ minimal_0 <- model.matrix(~ 0 + Period:Treatment, BACI)
 eg2 <- expand.grid(minimal_0, C, inv_C)
 print(eg2)
 ```
+
+**BMB**: you never constructed the 'custom' inverse-contrast/contrast matrices, which are most of the point of this exercise ...
+
 
 ## 3. Simulation Exercise
 
@@ -229,3 +250,7 @@ Linearity is violated as the simulation is for quadratic relationship instead of
 | Mean :-0.02291   | Mean :0.5648399   | Mean :0.796   | Mean :0.951   |
 | 3rd Qu.: 0.44127 | 3rd Qu.:0.8189966 | 3rd Qu.:1.000 | 3rd Qu.:1.000 |
 | Max. : 2.24764   | Max. :2.2476362   | Max. :1.000   | Max. :1.000   |
+
+**BMB**: I don't see where these examples cover "several different levels of violation". It looks like you ran it only for a single example?
+
+mark: 7.5

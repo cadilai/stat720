@@ -13,6 +13,8 @@ geometry:
 linestretch: 1.5
 ---
 
+**BMB**: thanks for not putting spaces in your file name this time.
+
 ```{r}
 library(ggplot2)
 library(rpart)
@@ -55,7 +57,7 @@ ggplot(kyphosis, aes(x=as.factor(Kyphosis), y=Age)) +
     xlab("Kyphosis")
 ```
 
-From the two box plots, 2 outliers detected in 'Number' while there is no outliers in 'Age', the range of 'Age' is larger than that of 'Number'. The data of kyphosis verses number are symmetric as the median line appear in the center of the box while present with age is a little bit left-skewed so the mean will be lower than the median.
+From the two box plots, 2 outliers detected in 'Number' while there is no outliers in 'Age', the range of 'Age' is larger than that of 'Number'. The data of kyphosis versus number are symmetric as the median line appear in the center of the box while present with age is a little bit left-skewed so the mean will be lower than the median.
 
 **1c. Fit the model**
 
@@ -95,7 +97,9 @@ simulationOutput_1 <- simulateResiduals(fittedModel = m_kyphosis)
 plot(simulationOutput_1)
 ```
 
-From the DHARMa plot, there is no occurrence of overdispersion and underdispersion. The QQ-plot on the left panel demonstrates dots align well on the QQ line which shows that residuals follow an uniform distribution. With KS test, dispersion and outlier test, there is no over/underdispersion and outliers appeared. From the plot of residual against the predicted values, there is no significant problems detected that no outliers show up, black lines which represent simulated quartiles is a little bit steep and cannot follow the dotted straight lines. So here is a difference between residual and predicted values.
+From the DHARMa plot, there is no occurrence of overdispersion and underdispersion.  **BMB**: shouldn't check overdispersion for Bernoulli responses with unique covariates ...
+
+The QQ-plot on the left panel demonstrates dots align well on the QQ line which shows that residuals follow an uniform distribution. With KS test, dispersion and outlier test, there is no over/underdispersion and outliers appeared. From the plot of residual against the predicted values, there is no significant problems detected that no outliers show up, black lines which represent simulated quartiles is a little bit steep and cannot follow the dotted straight lines. So here is a difference between residual and predicted values.
 
 -   **Comparison**
 
@@ -110,6 +114,8 @@ labs(x="coefficient plot")
 ```
 
 The coefficient plot here reveals that 'Number' and 'Age' are statistically significant at the 5% level that both whiskers are larger than 0 which affect the response variables more while 'Start' is less than 0.
+
+**BMB**: the coefficient plot should tell you *more* than just the p-values - you can get the p-values just by looking at the last column of the `summary()` output ... and, you should never draw a coefficient plot without scaling the predictors if they have different units (which they do in this case).
 
 ## 2. Gopher tortoise example
 
@@ -146,6 +152,8 @@ m1_gdata <- glm(shells ~ year + prev + Area, data = g_data, offset = log(Area), 
 summary(m1_gdata)
 ```
 
+**BMB**: note that the intercept is huge. This happens because you didn't center the year variable - you're treating it as numeric, so Year 0 is very far from the data ...
+
 For overdispersion checking, DHARMa plot and formal test will be carried out.
 
 ```{r fig6}
@@ -154,7 +162,6 @@ simulationOutput_2 <- simulateResiduals(fittedModel = m1_gdata)
 plot(simulationOutput_2)
 #test
 check_overdispersion(m1_gdata)
-
 ```
 
 Both plots demonstrate no obvious pattern of the occurrence of over/underdispersion and there is no overdispersion detected in the test.
@@ -171,6 +178,13 @@ m2_gdata <- mle2(shells ~ dnbinom(mu = exp(logmu)*Area, size = exp(logtheta)),
 summary(m2_gdata)
 ```
 
+```{r}
+coef(m2_nb <- MASS::glm.nb(shells ~ year + prev + offset(log(Area)), data = g_data))
+
+```
+
+**BMB**: Why are you fitting negative binomial in this case when you fitted Poisson with `glm()` ? You included the offest twice, and your results look a bit funny -- I'm not quite sure what happened ... Maybe numeric instability because your intercept and slope of year were so correlated? I tried `method = "Nelder-Mead"` but that didn't help too much ... ??
+
 **2d. Negative log-likelihood function**
 
 -   Define negative log-likelihood function for GLM
@@ -185,6 +199,8 @@ nll <- function(params) {
   -sum(dbetabinom(g_data$shells, size, prob, theta, log = TRUE))
 }
 ```
+
+**BMB**: why betabinom? This doesn't make sense for this example ... it looks like you copied the example too closely, without thinking enough about how it show be adapted to this problem??
 
 
 -   Fit the GLM using optim
@@ -205,6 +221,8 @@ parameters <- data.frame(glm = parameters(m1_gdata),
 print(parameters)
 ```
 The parameter of negative log-likelihood function contains 0. While parameter of other 2 models have positive and negative values respectively, the coefficient of glm() model is a large positive values, bbmle model has a negative value.
+
+**BMB**: if you fitted the same model all three ways you should get similar answers ... instead you fitted Poisson, neg binom, and beta-binomial -- three *different* models
 
 ```{r}
 #profiling 
@@ -258,6 +276,8 @@ m3_endometrial <- glm(HG ~ PI + EH + NV, data = endometrial, family=binomial, me
 summary(m3_endometrial)
 ```
 
+**BMB**: why `suppressWarnings()` ?
+
 **- Compare the estimates, confidence intervals, p-values and likelihood ratio test of each parameter from the glm results**
 
 -   **estimates**
@@ -282,7 +302,7 @@ CI <- data.frame(glm = confint.default(m1_endometrial),
 print(CI)
 ```
 
-From the table, it indicates that glm() model has the largest range of confidence interval for all variables so the true population means has the largest range. Besides, the confidence interval of 'NV' in the glm() model is extremely higher than other variables and models, it contains the smallest and largest values. 
+From the table, it indicates that glm() model has the largest range of confidence interval for all variables so the true population means has the largest range. (**BMB**: not sure what that means?)  Besides, the confidence interval of 'NV' in the glm() model is extremely higher than other variables and models, it contains the smallest and largest values. 
 
 -   **p-values**
 
@@ -305,11 +325,16 @@ lrtest(m1_endometrial)
 lrtest(m2_endometrial)
 #brglmFit model
 lrtest(m3_endometrial)
-
 ```
 
+**BMB**: these are tests of the *full model*, not of individual parameters (e.g. see `drop1()` ...)
+
 Based on the likelihood ratio test, all Pr(\>Chisq) are small which are all near 0 so the null hypothesis would be rejected in all 3 models. In addition, all 3 models have similar log likelihood values, with 4 degree of freedom, log likelihood values around -28, while the log likelihood values equal to -52 with 1 degree of freedom, it demonstrates that the first model (glm()) offers a better fit to the data with 0.5 higher than others.
+
+**BMB**: can't compare these measures -- log-likelihood, log-posterior, and penalized log-likelihood are all different loss functions
 
 -   **Reasons**
 
 Different methods used for fitting the model give different results because there are differences in their estimation approaches. For instance, regular glm() uses maximum likelihood estimation, while bayesglm() uses Bayesian estimation and glm(..., method = "brglmFit") uses implicit and explicit bias reduction methods.
+
+Mark: 8
