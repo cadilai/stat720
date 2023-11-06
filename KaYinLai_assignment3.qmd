@@ -1,0 +1,187 @@
+---
+title: "STATS 720 - Homework assignment 3"
+author: "Ka Yin Lai 400219450"
+date: "2023/11/06"
+format: html
+editor: visual
+header-includes:
+   - \usepackage{amsmath}
+   - \usepackage{float}
+fontsize: 11pt
+geometry: 
+  - margin = 1in
+linestretch: 1.5
+execute: 
+  message: false
+  warning: false
+---
+
+```{r}
+library(mlmRev)
+library(ggplot2); theme_set(theme_bw())
+library(nlme)
+library(lme4)
+library(lmerTest)
+library(glmmTMB)
+library(broom.mixed)
+library(dotwhisker)
+library(pbkrtest)
+```
+
+```{r}
+#READ DATA
+data(Early)
+```
+
+**(a) Using both lmer and lme to fit a random-slope linear mixed model**
+
+```{r}
+#Fit model with lmer
+model_lmer <- lmer(cog ~ age + trt + (age | id), 
+                   data = Early, REML=TRUE)
+summary(model_lmer)
+```
+
+```{r}
+#Fit model with lme
+model_lme <- lme(cog ~ age + trt, 
+                 random = ~ age | id, 
+                 data = Early, 
+                 method="REML",
+                 control = lmeControl(opt = "optim"))
+summary(model_lme)
+```
+
+```{r}
+#Log-likelihood of each models
+data.frame(lmer=logLik(model_lmer),
+           lme=logLik(model_lme))
+```
+
+lmer fit has a slightly higher log-likelihood value(-1183.382) than lme fit (-1183.404), which indicates that lme fit offers a better fit to the data.
+
+**(b) Extract the fixed-effect coefficients and create a coefficient plot**
+
+```{r}
+# Extract fixed-effect coefficients
+fixef(model_lmer)
+fixef(model_lme)
+```
+
+```{r}
+#Scale and fit model again
+scaled_model_lmer <- lmer(cog ~ scale(age) + trt + (age | id), 
+                   data = Early, REML=TRUE)
+scaled_model_lme <- lme(cog ~ scale(age) + trt, 
+                 random = ~ age | id, 
+                 data = Early, 
+                 method="REML",
+                 control = lmeControl(opt = "optim"))
+```
+
+```{r}
+#Coefficient plot
+dotwhisker::dwplot(list(lmer=scaled_model_lmer,lme=scaled_model_lme))+ 
+  geom_vline(xintercept = 0, lty = 2) +
+  labs(title = "coefficient plot")
+```
+
+The coefficient plot demonstrates the effect of fixed effect variables are very similar between two models. The coefficient for 'trt' is on the right side of the line, it indicates the effect of 'trt' is positive and clearly significant as the confidence interval does not touch the dotted line, while 'age' is to the left, which means its effect is not significant.
+
+```{r}
+#Extract coefficient summaries
+#lmer fit
+coef(summary(model_lmer))
+#lme fit
+coef(summary(model_lme))
+```
+
+Both lmer and lme fit have a same mean regression coefficients for 'age', the negative coefficient here (-18.16505) represents that if age increases by 1 year, the average cognitive score decreases by 18.16505. Whereas lmer fit has a slightly higher mean regression coefficients on 'trt' (10.52232) than lme fit's (10.49487) which means the average cognitive score will increase by 0.02745 more. Besides, both fits have a very similar intercept term, it indicates that the average cognitive score is around around 123.9 when other variables equals to 0. On the other hand, standard error of lme fit are all slightly higher than lmer fit's, it reveals that lmer fit is more accurate and more closer to the true value. In addition, the estimated denominator degrees of freedom varies a lot between models and variables, regarding the 'age' variable, lmer fit has a much higher degree of freedom on it (205 \> 155.2486) and both models have around 101 df on 'trt'.
+
+**(c) Compare the estimated denominator on lmer fit**
+
+```{r}
+#Satterthwaite approximations
+satterthwaite <- anova(model_lmer,
+ddf = c("Satterthwaite")
+)
+print(satterthwaite)
+```
+
+```{r}
+#Kenward-Roger approximations
+kenward <- anova(model_lmer,
+ddf = c("Kenward-Roger")
+)
+print(kenward)
+```
+
+```{r}
+#Print the comparison table
+data.frame(KenwardRoger=kenward$DenDF,
+                  Satterthwaite=satterthwaite$DenDF)
+```
+
+Kenward-Roger's method has a lower estimation of the denominator degrees of freedom for both fixed effects (102 & 101) than Satterthwaite's method (175.3316 & 101.3786), these differences are important because it indicates the power to find a significant result, so Satterthwaite's method offers a more powerful approach.
+
+**(d) Random effect plot of age for each level against the corresponding random intercept on lmer fit**
+
+```{r}
+#Random effect plot
+plot(ranef(model_lmer))
+```
+
+The random effect plot indicates that when age having higher level, their corresponding random intercept is getting lower which is a negative correlation.
+
+**(e) Reasons for not treating trt as a random effect**
+
+As 'trt' in the data set is a factor variable containing two levels, "N" and "Y" so it is typically a fixed variable that is constant across individuals and will not change over time while random effects will vary a lot and unpredictable so 'trt' will not treated as a random effect variable.
+
+**(f) Reasons for it would be weird to leave the fixed effect of age out of the model while retaining the random variation of age across id**
+
+A random variation of age across id(individual) means that each id is expected to be different on each age, also, the variation relationship between age and each individual will be accounted and also how the individuals related to cognitive score. If age is not fixed effect, it cannot estimate effects for variables change across each observations which is the population level coefficient of age and the relationship between age and cognitive score cannot be interpreted, and so, individual level variation in that relationship related to cognitive score cannot be accounted which would be weird.
+
+**(g) Fit reduced models**
+
+```{r}
+#Fit reduced models with all of the same fixed effects but with independent intercept and age variation across subjects
+model_lmer2<-lmer(cog ~ age + trt + (1 | id) + (0 + age | id),
+                   data = Early, REML=TRUE)
+summary(model_lmer2)
+```
+
+It is noticeable that the variance of 'age' is 0 in the independent model(model_lmer2) which suggests that all data values are identical.
+
+```{r}
+#Fit reduced models with all of the same fixed effects but with intercept variation only
+model_lmer3<-lmer(cog ~ age + trt + (1 | id), 
+                   data = Early, REML=TRUE)
+summary(model_lmer3)
+```
+
+```{r}
+#Use AIC to compare the models
+AIC(model_lmer2, model_lmer3)
+```
+
+Model with only intercept (model_lmer3) performs better because it contains lower AIC (2382.233) than independent model (model_lmer2).
+
+-   **Compare the full/correlated model to the independent model**
+
+```{r}
+pbkrtest::PBmodcomp(model_lmer, model_lmer2, nsim = 1000)
+```
+
+The values for likelihood ratio test statistic and PBtest are the same (5.539) which show association with cognitive score. Moreover, both tests have p-value less than 0.05 (LRT:0.01860 , PBtest: 0.01451), suggests that a significant difference does exist.
+
+-   **Compare the independent model to the model with only intercept**
+
+```{r}
+pbkrtest::PBmodcomp(model_lmer2, model_lmer3, nsim = 1000)
+```
+
+The p.value for LRT and PB test are both 1 here which suggests that there is no significant difference between models which seems problematic. Besides, the values for likelihood ratio test statistic and PBtest are both 0, it implies that the observations have a significantly lower likelihood to occur under the null hypothesis in comparison to the alternative.
+
+-   **Reasons why are standard LRT/AIC testing problematic in the second comparison (independent slope/intercept vs intercept only) but not the first**
+
+From the coefficients summary of the independent slope (model_lmer2), it shows that that the independent slope model's standard deviation/variance is 0 whereas the intercept-only model is testing for 0 variance of age, so it will be tested problematic.
