@@ -58,7 +58,11 @@ data.frame(lmer=logLik(model_lmer),
            lme=logLik(model_lme))
 ```
 
+**BMB** `data.frame` might be overkill here, but OK (`sapply(list(lmer = model_lmer, lme = model_lme), logLik)` ?)
+
 lmer fit has a slightly higher log-likelihood value(-1183.382) than lme fit (-1183.404), which indicates that lme fit offers a better fit to the data.
+
+**BMB**: this is backwards; the *less negative* log-likelihood (i.e. from `lmer`) indicates a better fit.
 
 **(b) Extract the fixed-effect coefficients and create a coefficient plot**
 
@@ -88,6 +92,8 @@ dotwhisker::dwplot(list(lmer=scaled_model_lmer,lme=scaled_model_lme))+
 
 The coefficient plot demonstrates the effect of fixed effect variables are very similar between two models. The coefficient for 'trt' is on the right side of the line, it indicates the effect of 'trt' is positive and clearly significant as the confidence interval does not touch the dotted line, while 'age' is to the left, which means its effect is not significant.
 
+**BMB**: this is misleading. The SD is fitted on the log scale and its confidence intervals are back-transformed from the log scale, so they can never be negative (a lower CI that appears to touch the SD=0 axis indicates that the SD could be arbitrarily close to zero ...) (It's also hard to judge Cor (intercept-age) on the same scale as the other values, since its maximum range is -1 to 1 ...)
+
 ```{r}
 #Extract coefficient summaries
 #lmer fit
@@ -97,6 +103,8 @@ coef(summary(model_lme))
 ```
 
 Both lmer and lme fit have a same mean regression coefficients for 'age', the negative coefficient here (-18.16505) represents that if age increases by 1 year, the average cognitive score decreases by 18.16505. Whereas lmer fit has a slightly higher mean regression coefficients on 'trt' (10.52232) than lme fit's (10.49487) which means the average cognitive score will increase by 0.02745 more. Besides, both fits have a very similar intercept term, it indicates that the average cognitive score is around around 123.9 when other variables equals to 0. On the other hand, standard error of lme fit are all slightly higher than lmer fit's, it reveals that lmer fit is more accurate and more closer to the true value. In addition, the estimated denominator degrees of freedom varies a lot between models and variables, regarding the 'age' variable, lmer fit has a much higher degree of freedom on it (205 \> 155.2486) and both models have around 101 df on 'trt'.
+
+**BMB**: the DF values are very different but this is not important because the approximation to the Gaussian is extremely good in any case. (We usually don't care about the intercept term much at all for inference ...)
 
 **(c) Compare the estimated denominator on lmer fit**
 
@@ -124,6 +132,8 @@ data.frame(KenwardRoger=kenward$DenDF,
 
 Kenward-Roger's method has a lower estimation of the denominator degrees of freedom for both fixed effects (102 & 101) than Satterthwaite's method (175.3316 & 101.3786), these differences are important because it indicates the power to find a significant result, so Satterthwaite's method offers a more powerful approach.
 
+**BMB**: these are different approximations of the same thing. Having higher reported df doesn't mean that the method is *actually* more powerful ...
+
 **(d) Random effect plot of age for each level against the corresponding random intercept on lmer fit**
 
 ```{r}
@@ -131,15 +141,19 @@ Kenward-Roger's method has a lower estimation of the denominator degrees of free
 plot(ranef(model_lmer))
 ```
 
-The random effect plot indicates that when age having higher level, their corresponding random intercept is getting lower which is a negative correlation.
+The random effect plot indicates that when age having higher level, their corresponding random intercept is getting lower which is a negative correlation. **BMB**: and indeed a correlation that is exactly -1 ...
 
 **(e) Reasons for not treating trt as a random effect**
 
 As 'trt' in the data set is a factor variable containing two levels, "N" and "Y" so it is typically a fixed variable that is constant across individuals and will not change over time while random effects will vary a lot and unpredictable so 'trt' will not treated as a random effect variable.
 
+**BMB** the first half of this sentence is correct, I'm not sure what the second half means ... ??? Random effects are not about the *predictor* being random/variable but about the *effect of the predictor* being variable across groups ...
+
 **(f) Reasons for it would be weird to leave the fixed effect of age out of the model while retaining the random variation of age across id**
 
 A random variation of age across id(individual) means that each id is expected to be different on each age, also, the variation relationship between age and each individual will be accounted and also how the individuals related to cognitive score. If age is not fixed effect, it cannot estimate effects for variables change across each observations which is the population level coefficient of age and the relationship between age and cognitive score cannot be interpreted, and so, individual level variation in that relationship related to cognitive score cannot be accounted which would be weird.
+
+**BMB**: again, this is an incorrect description of a random effect. See previous explanation. I don't really understand your explanation at all ...
 
 **(g) Fit reduced models**
 
@@ -151,6 +165,8 @@ summary(model_lmer2)
 ```
 
 It is noticeable that the variance of 'age' is 0 in the independent model(model_lmer2) which suggests that all data values are identical.
+
+**BMB** not that all data values are identical, but that the *effect of age* is estimated to be the same for every subject.
 
 ```{r}
 #Fit reduced models with all of the same fixed effects but with intercept variation only
@@ -164,7 +180,7 @@ summary(model_lmer3)
 AIC(model_lmer2, model_lmer3)
 ```
 
-Model with only intercept (model_lmer3) performs better because it contains lower AIC (2382.233) than independent model (model_lmer2).
+Model with only intercept (model_lmer3) performs better because it contains lower AIC (2382.233) than independent model (model_lmer2).  **BMB**: true. (You don't need this many decimal places for AIC.)
 
 -   **Compare the full/correlated model to the independent model**
 
@@ -185,3 +201,8 @@ The p.value for LRT and PB test are both 1 here which suggests that there is no 
 -   **Reasons why are standard LRT/AIC testing problematic in the second comparison (independent slope/intercept vs intercept only) but not the first**
 
 From the coefficients summary of the independent slope (model_lmer2), it shows that that the independent slope model's standard deviation/variance is 0 whereas the intercept-only model is testing for 0 variance of age, so it will be tested problematic.
+
+**BMB**: no, boundary value issues.
+
+Mark: 8/10
+
