@@ -450,7 +450,7 @@ simulations <- list(sim1, sim2, sim3, sim4, sim5, sim6, sim7, sim8)
 # Define a function to calculate metrics
 calculate_metrics <- function(simulations) {
   estimated <- sapply(simulations, function(res) res$fixed_effect_coef[2])  
-  true < - 0.5  
+  true <- 0.5  
  
   bias <- mean(estimated - true)
   variance <- mean((estimated - mean(true))^2)
@@ -465,6 +465,8 @@ results <- data.frame(lapply(simulations, calculate_metrics))
 
 ```{r}
 row_names <- paste0("sim", 1:8)
+num_rows <- 8
+num_cols <- 3
 summary <- matrix(NA, nrow = num_rows, ncol = num_cols)
 colnames(summary) <- c("Bias", "Variance", "Scaled RMSE")
 rownames(summary) <- row_names 
