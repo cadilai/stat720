@@ -472,14 +472,13 @@ colnames(summary) <- c("Bias", "Variance", "Scaled RMSE")
 rownames(summary) <- row_names 
 
 for (i in 1:length(results)) {
-  row_idx <- ceiling(i / num_cols)
-  col_idx <- i %% num_cols
-  if (col_idx == 0) col_idx <- num_cols   
-  
-  summary[row_idx, col_idx] <- results[[i]]
+  row_i <- ceiling(i / num_cols)
+  col_i <- i %% num_cols
+  if (col_i == 0) col_i <- num_cols   
+  summary[row_i, col_i] <- results[[i]]
 }
 
-print(summary)
+print(as.data.frame(summary))
 ```
 
 From the metrics summary, in general, we can see that all models have a negative bias, it means models are tend to underestimate the parameter, while all models contain relatively small variance which are all smaller than 0.01, it suggests that simulated data are close to the true one.
