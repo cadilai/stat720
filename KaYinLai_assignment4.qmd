@@ -1,0 +1,485 @@
+---
+title: "STATS 720 - Homework assignment 4"
+author: "Ka Yin Lai 400219450"
+date: "2023/12/08"
+format: html
+editor: visual
+header-includes:
+   - \usepackage{amsmath}
+   - \usepackage{float}
+fontsize: 11pt
+geometry: 
+  - margin = 1in
+linestretch: 1.5
+execute: 
+  message: false
+  warning: false
+---
+
+```{r}
+library(MCMCglmm) 
+library(brms)       
+library(rstanarm)   
+library(lme4)
+options(brms.backend = "cmdstanr")
+library(broom.mixed)   
+library(tidybayes)
+library(bayesplot)
+library(bayestestR) 
+library(ggplot2); theme_set(theme_bw())
+library(shinystan)
+library(tidyverse)
+library(broom)
+library(dotwhisker)
+library(lattice)
+library(nlme)
+library(ggeffects)
+```
+
+### (Q1) nepali analyzation
+
+```{r}
+#READ DATA
+nepali <- faraway::nepali
+```
+
+First, for data cleaning, we will detect missing values and remove them. Then, convert 'sex' into factor variable.
+
+```{r}
+#Check NAs
+sum(is.na(nepali))
+nepali2 <- na.omit(nepali)
+#Convert 'sex' into factor variable
+nepali2$sex <- factor(nepali2$sex, levels = c(1, 2), labels = c("male", "female"))
+```
+
+```{r}
+#Plot
+ggplot(nepali2, aes(x = age, y = wt, color = factor(sex))) +
+  geom_point() +
+  geom_smooth() +
+  labs(x = "Age", y = "Weight", title = "nepali")
+```
+
+The scatter plot determines whether the relationship between weight and age differs between sex. In general, it indicates a positive correlation between weight and age, which means if a child getting older, they will gain more weight. Besides, the slope for male is slightly steeper than for female, it suggests as the age increases, the weight of male increase more quickly than female.
+
+```{r}
+#model fitting
+m1_nepali <- lmer(wt ~ age + sex + mage + (1 | id), 
+                  data = nepali2, REML=TRUE)
+summary(m1_nepali)
+```
+
+As the data set includes both fixed and random effect, a random slope linear mixed model is fitted with weight as the response variable, 'age' , 'mage' and 'sex' as fixed effects, 'id' as the grouping variable. From the summary, it is noticeable that only 'sex(female)' contains a negative estimate.
+
+```{r}
+#check model
+performance::check_model(m1_nepali)
+```
+
+From the 7 model performance plots, we can first see that both 'age' and 'mage' have low collinearity. Second, plot of posterior predictive checks shows that the model fits well between true and simulated data as the model-predicted line resemble observed data line. Third, the spread of dots in the linearity plot indicates that the model specification seems to be acceptable as the line is roughly follow the dotted straight line except the fitted values around 4 that residuals there may have non-linear patterns. Fourth, dots in homogeneity of variance plot spread equally above and below a roughly straight and horizontal line with no apparent deviation. In addition, the points of influential observations plot points are all fall inside of Cook's distance so there is no influential observation identified. Lastly, the normality of random effect plot determined that the random effects of the model are mainly normally distributed that dots are fall along the line.
+
+```{r}
+#Plot subset of predictor variables
+gg1 <- ggpredict(m1_nepali, terms = c("age", "sex"))
+pp1 <- plot(gg1)
+bb1 <- ggplot_build(pp1)
+names(bb1$data[[1]])
+names(bb1$data[[2]])
+
+pp1 + stat_sum(data = nepali2,
+              aes(x = age, y = wt, colour = sex),
+              fill = NA) +
+    stat_summary(data = nepali2,
+                 aes(x = age, y = wt, colour = sex),
+                 fill = NA,
+                 geom = "point",
+                 fun = mean)
+```
+
+For the plot, 'age' and 'wt'(weight) is subsetted as predictor variables. The slope of the relationship is the same for both gender where the predicted values appeared as bigger dot while original data set shown as smaller one. In general, predicted values are quite accurate that it follows the line well and no obvious outliers appears.
+
+```{r}
+#Coefficient plot
+dotwhisker::dwplot(m1_nepali, effect ="fixed")+ 
+geom_vline(xintercept = 0, lty = 2)
+```
+
+-   Comment on differences:
+
+As the original paper is using different variables, there is no comparison can be made.
+
+### (Q2) Contraception analyzation
+
+```{r}
+#READ DATA
+Contraception <- mlmRev::Contraception
+```
+
+```{r}
+#Plot
+ggplot(Contraception, aes(x = age, y = use, color = factor(livch))) +
+  geom_point() +
+  facet_grid(~urban, labeller=label_both) +
+  labs(x = "Age", y = "use", title = "Contraception Data")
+
+ggplot(Contraception, aes(x = age, y = use)) + 
+  geom_boxplot( )
+```
+
+The first plot compares the use of contraception by woman in urban and rural areas among different ages and number of living children. There is a balance outcome where it indicates that number of living children did depends on the age of woman, that older woman will generally have more living children.
+
+The second box plot shows the relationship between 'use' and 'age', both distributions is positively skewed and there is no outliers. While the group of woman who use contraception has a smaller IQR value which shows that the median of age cluster more tightly.
+
+For model fitting, we will first convert use into (0,1) instead of (1,2).
+
+Then, glmer model with is fitted:
+
+```{r}
+#Model fitting
+Contraception$use <- as.numeric(Contraception$use)-1
+m1_contraception <- glmer(use ~ urban + age + livch + (age|district),
+            family = binomial,
+            data = Contraception)
+```
+
+As it contains a binary outcome, a DHARMa plot will be generated:
+
+```{r}
+#Check model
+DHARMa::simulateResiduals(m1_contraception, plot=TRUE)
+```
+
+From the DHARMa plot, there is no occurrence of overdispersion and underdispersion. The QQ-plot on the left panel demonstrates dots align well on the QQ line which shows that residuals follow an uniform distribution. With KS test, dispersion and outlier test, there is no over/underdispersion and outliers appeared. From the plot of residual against the predicted values, there is no significant problems detected that no outliers show up, black lines which represent simulated quartiles deviate a little bit and not follow the dotted straight lines very well so here is a difference between residual and predicted values. We can conclude that the model fits well.
+
+```{r}
+#Plot
+library(ggeffects)
+gg2 <- ggpredict(m1_contraception, terms = c("age [all]", "urban"))
+pp2 <- plot(gg2)
+bb2 <- ggplot_build(pp2)
+names(bb2$data[[1]])
+names(bb2$data[[2]])
+
+pp2 + stat_sum(data = Contraception,
+              aes(x = age, y = use, colour = urban),
+              fill = NA) +
+    stat_summary(data = Contraception,
+                 aes(x = age, y = use, colour = urban),
+                 fill = NA,
+                 geom = "point",
+                 fun = mean)
+```
+
+The response value of 100% on the y-axis represents a use of contraception, vice versa. The original data values are shown as big dots in red and blue. Patterns here is not obvious, but the gentle slope of both groups can tell that there is a negative relationship between use and age, when a woman getting older, the use of contraception is more close to 0%, no matted they are living in urban or rural area.
+
+For fitting models for comparison, 'urban', 'livch' and 'age' will be the fixed effect and 'district' is the random effect if needed.
+
+```{r}
+#FITTING MODELS FOR COMPARISONS
+#(a) glm
+m2_contraception <- glm(use ~ urban + livch + age,
+                          family = binomial,
+                          data = Contraception)
+
+#(b) glmmPQL
+m3_contraception <- MASS::glmmPQL(use ~ urban + livch + age, 
+                                  random = ~ 1 | district,
+                                  family = binomial, 
+                                  data = Contraception)
+
+#(c) Laplace approximation
+m4_contraception <- lme4::glmer(use ~ urban + age + livch + (1|district),
+            family = binomial,
+            data = Contraception)
+
+#(d) adaptive Gauss-Hermite quadrature 
+m5_contraception <- update(m4_contraception, nAGQ=20)
+```
+
+```{r}
+#Coefficient plot 
+dotwhisker::dwplot(list(Completely_pooled = m2_contraception,
+                        glmmPQL = m3_contraception, 
+                        Laplace = m4_contraception, 
+                        Adaptive_Gauss_Hermite = m5_contraception),
+ ) + 
+geom_vline(xintercept = 0, lty = 2)
+```
+
+The coefficient plot of four models demonstrates the effect of fixed effect variables are very similar between four models. The coefficients for 'livch' are all on the right side of the line, it indicates the effect of it is positive and clearly significant as the confidence interval does not touch the dotted line, while 'age' of all four models are to the left, which means its effect is not significant. Besides, woman living in urban weigh more than than woman not living in urban.
+
+-   Comment on the differences:
+
+The original paper compared four models including SML, second-order Laplace approximation (HLM), MCMC (in MLwiN) and numerical integration using adaptive quadrature methods. It suggested that Laplace approximation produces markedly lower parameter estimates when data is sparse. In our analyzation, the performance of Laplace is similar to glmmPQL and adaptive gauss-hermite while the completely pooled model demonstrates a slightly different results from others.
+
+### (Q3) Redo nepali analyzation that handle Bayesian MCMC analyses of GLMMs
+
+To redo nepali analyses, we consider MCMCglmm and rstanarm packages.
+
+1.  **MCMCglmm**
+
+For the first model, we fit a MCMCglmm model with sex, age, mage and lit as fixed effect while id be the random effect.
+
+```{r}
+#FIT a mcmc model
+m2_nepali <- MCMCglmm::MCMCglmm(wt ~ sex + age + mage, random = ~ id ,
+              data = nepali2,
+              verbose=FALSE)
+```
+
+Here is the summary:
+
+```{r}
+#Summary
+summary(m2_nepali)
+```
+
+```{r}
+#TRACE PLOT
+mm <- as.mcmc(m2_nepali$VCV)
+lattice::xyplot(mm)
+lattice::densityplot(mm)
+```
+
+The first trace plot indicates good mixing. The second density plot shows the posterior density estimate of the parameter, both of it a little bit right-skewed which indicates that the mean is greater than median.
+
+```{r}
+#Coefficient plot
+dotwhisker::dwplot(tidy(m2_nepali), effect ="fixed")+ 
+geom_vline(xintercept = 0, lty = 2)
+```
+
+The coefficient plot of mcmcglmm model shows that coefficient of 'sexfemale' is smaller than 0, it also suggests that female weigh more than male.
+
+2.  **rstanarm**
+
+For the second mcmc model, rstanarm package is used, with 'sex', 'age', 'mage' as fixed effect and 'id' as grouping variables.
+
+```{r}
+#priorpred
+priorpred <- stan_lmer(wt ~ sex + age + mage + (age | id),
+                       prior_PD = FALSE, data = nepali, chains = 1,
+                       seed = 101,
+                       refresh = 0)
+```
+
+```{r}
+#Plot
+plot(priorpred, pars = c("(Intercept)", "age", "mage","sex"))
+plot(priorpred, regex_pars = "Sigma")
+```
+
+By plotting priorpred, we can look at the coefficients of intercept and fixed-effect, the points in the above plot are posterior medians. It is clearly that only intercept is larger than 0. Now, we fit the model into it.
+
+```{r}
+#Fit the model
+m3_nepali <- stan_lmer(wt ~ sex + age + mage + (age | id),
+                     data = nepali2,
+                     cores = 4,
+                     iter = 100,
+                     seed = 101,
+                     chains = 4)
+```
+
+```{r}
+#diagnostic_posterior
+diagnostic_posterior(m3_nepali, effects = "all",
+                     parameters = "Sigma")
+```
+
+From the diagnostic, all parameters contains Rhat larger than 1.01 which suggests that it have not converged by markov chain. On the other hand, Sigma\[id:age,age\] contains extremely small MCSE which means there is relatively small estimate of the inaccuracy while it also has the largest number of iterations in this markov chain.
+
+```{r}
+#posterior
+posterior <- as.array(m3_nepali) 
+dim(posterior)
+```
+
+```{r}
+#Trace plot
+mcmc_trace(m3_nepali, regex_pars = "Sigma") 
+```
+
+From the trace plot, four chains follow a similar movement and mix well.
+
+```{r}
+#Coefficient plot
+dotwhisker::dwplot(tidy(m3_nepali), effect ="fixed")+ 
+geom_vline(xintercept = 0, lty = 2)
+```
+
+By comparing three coefficient plots, for 'sex', all three models suggested that female weigh more than male. The first model contains a smallest coefficients of it which is nearly around -0.4.
+
+### (Q4) Simulation study to compare PQL, Laplace, and 20-point AGHQ
+
+-   A simulation function
+
+```{r}
+#SIMULATION FUNCTION
+simfun <- function(beta, theta, n, ngrp) {
+   set.seed(101) 
+   x <- rnorm(n)
+   g <- factor(rep(1:ngrp, each = n/ngrp))
+   mydata <- data.frame(x = x, g = g)
+   mydata$y <- simulate(~ 1 + x + (1|g),
+                        family = poisson,
+                        newdata = mydata,
+                        newparams = list(beta = beta, theta = theta))[[1]]
+   return(mydata)
+ }
+```
+
+-   A function fitfun(mydata, nAGQ) that fits a Poisson GLMM to the data
+
+```{r}
+fitfun <- function(mydata, nAGQ) {
+  if (nAGQ == -2) {
+    m1 <- glm(y ~ 1 + x , 
+              data = mydata, family = poisson)
+    coefficients <- coef(m1)
+    conf_intervals <- confint(m1)
+  }
+  else if (nAGQ == -1) {
+    m1 <- MASS::glmmPQL(y ~ 1 + x, random = ~ 1 | g,
+                        data = mydata, family = poisson)
+    coefficients <- as.numeric(fixef(m1))
+    conf_intervals <- nlme::intervals(m1, which="fixed")
+  } 
+  else {
+    m1 <- glmer(y ~ 1 + x + (1 | g), 
+                data = mydata, family = poisson, nAGQ = nAGQ)
+    coefficients <- as.numeric(fixef(m1))
+    conf_intervals <- confint(m1)
+  }
+  return(list(fixed_effect_coef = coefficients, confidence_intervals = conf_intervals))
+}
+```
+
+-   Run simulation study for 8 scenarios
+
+```{r}
+#Define parameters
+beta_values <- list(c(-2, 0.5), c(2, 0.5))
+nAGQ <- c(-2, -1, 1, 10)
+n_value <- 500
+ngrp_value <- 100
+nsim <- 100
+```
+
+```{r}
+#Run 100 times for 8 scenarios
+set.seed(101)
+sim1 <- list()
+for (i in 1:100) {
+      simulated <- simfun(beta = c(-2, 0.5), theta = 1, n = 500, ngrp = 100)
+      sim1[[i]] <- fitfun(simulated, nAGQ = -2)
+}
+return(sim1)
+```
+
+```{r}
+sim2 <- list()
+for (i in 1:100) {
+      simulated <- simfun(beta = c(-2, 0.5), theta = 1, n = 500, ngrp = 100)
+      sim2[[i]] <- fitfun(simulated, nAGQ = -1)
+}
+return(sim2)
+```
+
+```{r}
+sim3 <- list()
+for (i in 1:100) {
+      simulated <- simfun(beta = c(-2, 0.5), theta = 1, n = 500, ngrp = 100)
+      sim3[[i]] <- fitfun(simulated, nAGQ = 1)
+}
+return(sim3)
+```
+
+```{r}
+sim4 <- list()
+for (i in 1:100) {
+      simulated <- simfun(beta = c(-2, 0.5), theta = 1, n = 500, ngrp = 100)
+      sim4[[i]] <- fitfun(simulated, nAGQ = 10)
+}
+return(sim4)
+```
+
+```{r}
+sim5 <- list()
+for (i in 1:100) {
+      simulated <- simfun(beta = c(2, 0.5), theta = 1, n = 500, ngrp = 100)
+      sim5[[i]] <- fitfun(simulated, nAGQ = -2)
+}
+return(sim5)
+```
+
+```{r}
+sim6 <- list()
+for (i in 1:100) {
+      simulated <- simfun(beta = c(2, 0.5), theta = 1, n = 500, ngrp = 100)
+      sim6[[i]] <- fitfun(simulated, nAGQ = -1)
+   
+}
+return(sim6)
+```
+
+```{r}
+sim7 <- list()
+for (i in 1:100) {
+      simulated <- simfun(beta = c(2, 0.5), theta = 1, n = 500, ngrp = 100)
+      sim7[[i]] <- fitfun(simulated, nAGQ = 1)
+}
+return(sim7)
+```
+
+```{r}
+sim8 <- list()
+for (i in 1:100) {
+      simulated <- simfun(beta = c(2, 0.5), theta = 1, n = 500, ngrp = 100)
+      sim8[[i]] <- fitfun(simulated, nAGQ = 10)
+}
+return(sim8)
+```
+
+-   Metrics comparison
+
+```{r}
+simulations <- list(sim1, sim2, sim3, sim4, sim5, sim6, sim7, sim8)
+
+# Define a function to calculate metrics
+calculate_metrics <- function(simulations) {
+  estimated <- sapply(simulations, function(res) res$fixed_effect_coef[2])  
+  true < - 0.5  
+ 
+  bias <- mean(estimated - true)
+  variance <- mean((estimated - mean(true))^2)
+  rmse <- sqrt(mean((estimated / true - 1)^2))
+  
+  return(data.frame(bias = bias, variance = variance, scaled_rmse = rmse))
+}
+
+# Calculate metrics for each simulation result
+results <- data.frame(lapply(simulations, calculate_metrics))
+```
+
+```{r}
+row_names <- paste0("sim", 1:8)
+summary <- matrix(NA, nrow = num_rows, ncol = num_cols)
+colnames(summary) <- c("Bias", "Variance", "Scaled RMSE")
+rownames(summary) <- row_names 
+
+for (i in 1:length(results)) {
+  row_idx <- ceiling(i / num_cols)
+  col_idx <- i %% num_cols
+  if (col_idx == 0) col_idx <- num_cols   
+  
+  summary[row_idx, col_idx] <- results[[i]]
+}
+
+print(summary)
+```
+
+From the metrics summary, in general, we can see that all models have a negative bias, it means models are tend to underestimate the parameter, while all models contain relatively small variance which are all smaller than 0.01, it suggests that simulated data are close to the true one.
+
+By comparing each model, first, we can see that the 10-point AGHQ model with intercept = -2 (sim8) has a bias nearest to 0 which means it get the smallest differences between an estimate and the true value. Second, the glm model with intercept = 2 (sim5) has a lowest variance that its sampled data is close to where the model predicted it would be. Last, comparing the scaled rmse, the 10-point AGHQ model with intercept = -2 contains the smallest, it suggests that it is more able to predict the target variable accurately. Overall, the 10-point AGHQ model with intercept = -2 shows the best performance.
