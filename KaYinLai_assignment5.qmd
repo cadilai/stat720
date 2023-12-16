@@ -1,0 +1,305 @@
+---
+title: "STATS 720 - Homework assignment 5"
+author: "Ka Yin Lai 400219450"
+date: "2023/12/17"
+format: html
+editor: visual
+header-includes:
+   - \usepackage{amsmath}
+   - \usepackage{float}
+fontsize: 11pt
+geometry: 
+  - margin = 1in
+linestretch: 1.5
+execute: 
+  message: false
+  warning: false
+---
+
+```{r}
+library(mgcv)
+library(lme4)
+library(broom)
+library(broom.mixed)
+library(dotwhisker)
+library(ggeffects)
+library(mlmRev)
+```
+
+```{r}
+#READ DATA
+Contraception <- mlmRev::Contraception
+```
+
+```{r}
+#Create new variables 
+#centered age
+Contraception$age_sc <- drop(scale(Contraception$age))
+#numericalized use
+Contraception$use_n <- as.numeric(Contraception$use)-1
+```
+
+```{r}
+# Plot predictions 
+set.seed(101)
+binom_sum <- function(x, alpha = 0.05) {
+    n <- length(x); x <- sum(x)
+    est <- x/n
+    lwr <- qbeta(alpha/2, x, n-x+1)
+    zvals <- !is.na(x) & x == 0
+    nvals <- !is.na(x) & x == n
+    lwr[zvals] <- 0
+    lwr[nvals] <- (alpha/2)^(1/n[nvals])
+    upr <- qbeta(1-alpha/2, x+1, n-x)
+    upr[zvals] <- 1-(alpha/2)^(1/n[zvals])
+    upr[nvals] <- 1
+    data.frame(y=est, ymin=lwr, ymax=upr)
+}
+
+ssb <- ggplot2::stat_summary_bin(data = Contraception,
+                            fun.data = binom_sum,
+                            bins = 10,
+                            geom = "pointrange",
+                            position = ggplot2::position_dodge(width = 0.05),
+                            mapping = ggplot2::aes(x = age_sc, y = use_n, colour = urban),
+                            fill = NA)
+```
+
+### Q1
+
+-   glmer
+
+```{r}
+#Fit glmer model
+m1_glmer <- glmer(use_n ~ age_sc * urban + (1 | district), 
+                     data = Contraception, family = binomial)
+summary(m1_glmer)
+```
+
+-   gam
+
+```{r}
+#Fit gam model
+m2_gam <- gam(use_n ~ age_sc * urban  + s(district, bs="re"), 
+                 data = Contraception, family="binomial")
+summary(m2_gam)
+```
+
+-   Comparisons
+
+The fixed-effects we are going to compare are 'age' and 'urban'. The estimates and standard errors for the fixed-effect are similar in both models. First, the estimates for fixed effect in glmer are all higher than that of gam while it is lower for the interaction term. On the other hand, looking at the standard error, all standard error in gam are all slightly lower than glmer's, it suggests that data adheres more tightly in gam.
+
+### Q2
+
+-   \(a\) A fixed quadratic function of age
+
+```{r}
+#Fit the model 
+m3_gam <- gam(use_n ~ poly(age_sc, 2) + urban + s(district, bs = "re"), 
+                data = Contraception, family="binomial")
+summary(m3_gam)
+```
+
+```{r}
+#Prediction with ggemmeans and plot
+emm1 <- ggemmeans(m3_gam, terms = c("age_sc [all]", "urban"))
+plot_m3 <- plot(emm1) + ssb
+control <- gam.control(trace = TRUE, nthreads = 10)
+print(plot_m3)
+```
+
+-   \(b\) An effect of age modeled as a thin-plate spline
+
+```{r}
+#Fit the model
+m4_gam <- gam(use_n ~  age_sc + urban + s(age_sc, bs = "tp") + s(district, bs = "re"), 
+              data = Contraception, family="binomial")
+summary(m4_gam)
+```
+
+```{r}
+#Prediction with ggemmeans and plot
+emm2 <- ggemmeans(m4_gam, terms = c("age_sc [all]", "urban"))
+plot_m4 <- plot(emm2) + ssb 
+control <- gam.control(trace = TRUE, nthreads = 10)
+print(plot_m4)
+```
+
+-   Comparision
+
+```{r}
+#Create d1, d2
+d1 <- as.data.frame(ggemmeans(m3_gam, terms = c("age_sc [all]", "urban")))
+d2 <- as.data.frame(ggemmeans(m4_gam, terms = c("age_sc [all]", "urban")))
+```
+
+```{r}
+#
+ssb2 <- ggplot2::stat_summary_bin(data = d1,
+                            fun.data = binom_sum,
+                            bins = 10,
+                            geom = "pointrange",
+                            position = ggplot2::position_dodge(width = 0.05),
+                            mapping = ggplot2::aes(x = x, y = predicted, colour = group),
+                            fill = NA)
+ssb3<-ggplot2::stat_summary_bin(data = d2,
+                            fun.data = binom_sum,
+                            bins = 10,
+                            geom = "pointrange",
+                            position = ggplot2::position_dodge(width = 0.05),
+                            mapping = ggplot2::aes(x = x, y = predicted, colour = group),
+                            fill = NA)
+```
+
+```{r}
+#Plot together
+ggplot()+geom_line(data=d1, aes(x = x, y = predicted, color = as.factor(group))) + 
+  ssb2 +
+  geom_line(data=d2, linetype=2, aes(x = x, y = predicted, color = as.factor(group))) + 
+  ssb3 +  
+  labs(x="age_sc", y = "predicted")+
+  geom_ribbon(data=d1, aes(x = x, y = predicted,ymin=conf.low, ymax=conf.high, colour = group), alpha=0.2, fill = "purple") +
+  geom_ribbon(data=d2, aes(x = x, y = predicted,ymin=conf.low, ymax=conf.high, colour = group), alpha=0.2, fill = "yellow")
+  
+```
+
+By comparing, we can see predicted data are nearly overlapped between two models, it indicates that the predictions are almost the same while we can see the confidence interval for urban(Y) is wider in the second model which is in yellow colour, it illustrates the model with an effect of age modeled as a thin-plate spline may have a more unstable prediction than the one with fixed quadratic function of age.
+
+### Q3
+
+-   \(a\) A quadratic-age urban/rural interaction
+
+```{r}
+# Fit the model
+m5_gam <- gam(use_n ~ poly(age_sc, 2) * urban + s(district, bs = "re"), 
+              data = Contraception, family="binomial")
+summary(m5_gam)
+```
+
+```{r}
+# Plot 
+plot_m5 <- plot(ggemmeans(m5_gam, terms = c("age_sc [all]", "urban"))) + ssb
+print(plot_m5)
+```
+
+-   \(b\) Separate thin-plate splines for age_sc for urban and rural settings
+
+```{r}
+# Fit the model
+m6_gam <- gam(use_n ~ age_sc + urban + s(district, bs = "re") + 
+                s(age_sc, by = urban, bs = "tp") , 
+              data = Contraception, family="binomial")
+summary(m6_gam)
+```
+
+```{r}
+#Plot 
+plot_m6 <- plot(ggemmeans(m6_gam, terms = c("age_sc [all]", "urban"))) + ssb
+print(plot_m6)
+```
+
+-   Comparisons
+
+```{r}
+#Create d3, d4
+d3 <- as.data.frame(ggemmeans(m5_gam, terms = c("age_sc [all]", "urban")))
+d4 <- as.data.frame(ggemmeans(m6_gam, terms = c("age_sc [all]", "urban")))
+```
+
+```{r}
+ssb4 <- ggplot2::stat_summary_bin(data = d3,
+                            fun.data = binom_sum,
+                            bins = 10,
+                            geom = "pointrange",
+                            position = ggplot2::position_dodge(width = 0.05),
+                            mapping = ggplot2::aes(x = x, y = predicted, colour = group),
+                            fill = NA)
+ssb5<-ggplot2::stat_summary_bin(data = d4,
+                            fun.data = binom_sum,
+                            bins = 10,
+                            geom = "pointrange",
+                            position = ggplot2::position_dodge(width = 0.05),
+                            mapping = ggplot2::aes(x = x, y = predicted, colour = group),
+                            fill = NA)
+```
+
+```{r}
+#Plot together
+ggplot()+geom_line(data=d3, aes(x = x, y = predicted, color = as.factor(group))) + 
+  ssb4 +
+  geom_line(data=d4, linetype=2, aes(x = x, y = predicted, color = as.factor(group))) + 
+  ssb5 +  
+  labs(x="age_sc", y = "predicted")+
+  geom_ribbon(data=d3, aes(x = x, y = predicted, ymin=conf.low, ymax=conf.high, colour = group), alpha=0.2, fill = "purple") +
+  geom_ribbon(data=d4, aes(x = x, y = predicted, ymin=conf.low, ymax=conf.high, colour = group), alpha=0.2, fill = "yellow")
+  
+```
+
+By comparing, the predictions look similar and almost the same but we can see that the confidence intervals are wider in the second model, so the first model with a quadratic-age x urban/rural interaction may perform better as a narrow confidence interval demonstrates a greater degree of precision.
+
+### Q4
+
+-   \(a\)
+
+```{r}
+#Fit the model
+m7_glmer <- glmer(use_n ~ poly(age_sc, 2) * urban + (poly(age_sc, 2) | district), 
+                  data = Contraception, family="binomial")
+summary(m7_glmer)
+```
+
+-   \(b\)
+
+```{r}
+#Fit the model
+m8_gam <- gam(use_n ~ urban + s(district, bs = "re") + s(age_sc, by = urban) +
+                s(age_sc, district, bs = "fs"), 
+                 data = Contraception, family="binomial")
+summary(m8_gam)
+```
+
+-   Prediction
+
+```{r}
+# Create newdata 
+nd <- with(Contraception,
+           expand.grid(urban = levels(urban),
+                       age_sc = unique(age_sc),
+                       district = unique(district)))
+```
+
+```{r}
+#Predict with glmer()
+m7_predict <- predict(m7_glmer, newdata = nd, type = "response")
+# Combine m7_predict with nd
+nd$m7_predict <- m7_predict
+```
+
+```{r}
+#Predict with gam()
+m8_predict<- predict(m8_gam, newdata = nd, type = "response")
+#Combine m8_predict with nd
+nd$m8_predict <- m8_predict
+```
+
+-   Plot the results
+
+```{r}
+#Plot for glmer
+ggplot(nd, aes(x = age_sc, y = m7_predict, color = as.factor(urban))) +
+  geom_line(aes(group = interaction(district, urban))) +
+  labs(x = "age_sc", y = "Predicted use_n", title = "Prediction values") +
+  theme_minimal() 
+```
+
+```{r}
+#Plot for gam
+ggplot(nd, aes(x = age_sc, y = m8_predict, color = as.factor(urban))) +
+  geom_line(aes(group = interaction(district, urban))) +
+  labs(x = "Age", y = "Predicted use_n", title = "Prediction values") +
+  theme_minimal() 
+```
+
+-   Comparisons
+
+By comparing, both predictions look similar, but it is obvious that prediction by gam is more right-skewed, it suggests that the mode values in the predicted values of gam() is smaller than median. Also, both models illustrate that the predicted value for urban is always higher than rural's.
