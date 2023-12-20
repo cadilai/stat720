@@ -1,4 +1,4 @@
----
+uo---
 title: "STATS 720 - Homework assignment 4"
 author: "Ka Yin Lai 400219450"
 date: "2023/12/08"
@@ -71,6 +71,8 @@ summary(m1_nepali)
 ```
 
 As the data set includes both fixed and random effect, a random slope linear mixed model is fitted with weight as the response variable, 'age' , 'mage' and 'sex' as fixed effects, 'id' as the grouping variable. From the summary, it is noticeable that only 'sex(female)' contains a negative estimate.
+
+BMB: why not random-slopes model??
 
 ```{r}
 #check model
@@ -175,7 +177,9 @@ The response value of 100% on the y-axis represents a use of contraception, vice
 
 For fitting models for comparison, 'urban', 'livch' and 'age' will be the fixed effect and 'district' is the random effect if needed.
 
-```{r}
+BMB: what about random slopes?
+
+```{r modelcmp}
 #FITTING MODELS FOR COMPARISONS
 #(a) glm
 m2_contraception <- glm(use ~ urban + livch + age,
@@ -197,7 +201,7 @@ m4_contraception <- lme4::glmer(use ~ urban + age + livch + (1|district),
 m5_contraception <- update(m4_contraception, nAGQ=20)
 ```
 
-```{r}
+```{r coefplot}
 #Coefficient plot 
 dotwhisker::dwplot(list(Completely_pooled = m2_contraception,
                         glmmPQL = m3_contraception, 
@@ -221,7 +225,7 @@ To redo nepali analyses, we consider MCMCglmm and rstanarm packages.
 
 For the first model, we fit a MCMCglmm model with sex, age, mage and lit as fixed effect while id be the random effect.
 
-```{r}
+```{r mcmcglmm}
 #FIT a mcmc model
 m2_nepali <- MCMCglmm::MCMCglmm(wt ~ sex + age + mage, random = ~ id ,
               data = nepali2,
@@ -235,7 +239,7 @@ Here is the summary:
 summary(m2_nepali)
 ```
 
-```{r}
+```{r mtrace}
 #TRACE PLOT
 mm <- as.mcmc(m2_nepali$VCV)
 lattice::xyplot(mm)
@@ -244,7 +248,7 @@ lattice::densityplot(mm)
 
 The first trace plot indicates good mixing. The second density plot shows the posterior density estimate of the parameter, both of it a little bit right-skewed which indicates that the mean is greater than median.
 
-```{r}
+```{r mcoef}
 #Coefficient plot
 dotwhisker::dwplot(tidy(m2_nepali), effect ="fixed")+ 
 geom_vline(xintercept = 0, lty = 2)
@@ -256,7 +260,7 @@ The coefficient plot of mcmcglmm model shows that coefficient of 'sexfemale' is 
 
 For the second mcmc model, rstanarm package is used, with 'sex', 'age', 'mage' as fixed effect and 'id' as grouping variables.
 
-```{r}
+```{r stan1, cache=TRUE}
 #priorpred
 priorpred <- stan_lmer(wt ~ sex + age + mage + (age | id),
                        prior_PD = FALSE, data = nepali, chains = 1,
@@ -272,7 +276,7 @@ plot(priorpred, regex_pars = "Sigma")
 
 By plotting priorpred, we can look at the coefficients of intercept and fixed-effect, the points in the above plot are posterior medians. It is clearly that only intercept is larger than 0. Now, we fit the model into it.
 
-```{r}
+```{r stan2, cache=TRUE}
 #Fit the model
 m3_nepali <- stan_lmer(wt ~ sex + age + mage + (age | id),
                      data = nepali2,
@@ -483,4 +487,4 @@ print(as.data.frame(summary))
 
 From the metrics summary, in general, we can see that all models have a negative bias, it means models are tend to underestimate the parameter, while all models contain relatively small variance which are all smaller than 0.01, it suggests that simulated data are close to the true one.
 
-By comparing each model, first, we can see that the 10-point AGHQ model with intercept = -2 (sim8) has a bias nearest to 0 which means it get the smallest differences between an estimate and the true value. Second, the glm model with intercept = 2 (sim5) has a lowest variance that its sampled data is close to where the model predicted it would be. Last, comparing the scaled rmse, the PQL model with intercept = 2 (sim6) contains the smallest, it suggests that it is more able to predict the target variable accurately. 
+By comparing each model, first, we can see that the 10-point AGHQ model with intercept = -2 (sim8) has a bias nearest to 0 which means it get the smallest differences between an estimate and the true value. Second, the glm model with intercept = 2 (sim5) has a lowest variance that its sampled data is close to where the model predicted it would be. (BMB: ???) Last, comparing the scaled rmse, the PQL model with intercept = 2 (sim6) contains the smallest, it suggests that it is more able to predict the target variable accurately.  (BMB: surprising)

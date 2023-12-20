@@ -114,6 +114,11 @@ print(plot_m3)
 #Fit the model
 m4_gam <- gam(use_n ~  age_sc + urban + s(age_sc, bs = "tp") + s(district, bs = "re"), 
               data = Contraception, family="binomial")
+m4B_gam <- gam(use_n ~  urban + s(age_sc, bs = "tp") + s(district, bs = "re"), 
+               data = Contraception, family="binomial")
+## BMB: identical model fits ...
+logLik(m4_gam)
+logLik(m4B_gam)
 summary(m4_gam)
 ```
 
@@ -241,7 +246,7 @@ By comparing, the predictions look similar and almost the same but we can see th
 
 -   \(a\)
 
-```{r}
+```{r big_glmerfit, cache=TRUE}
 #Fit the model
 m7_glmer <- glmer(use_n ~ poly(age_sc, 2) * urban + (poly(age_sc, 2) | district), 
                   data = Contraception, family="binomial")
@@ -250,7 +255,7 @@ summary(m7_glmer)
 
 -   \(b\)
 
-```{r}
+```{r big_gamfit, cache=TRUE}
 #Fit the model
 m8_gam <- gam(use_n ~ urban + s(district, bs = "re") + s(age_sc, by = urban) +
                 s(age_sc, district, bs = "fs"), 
